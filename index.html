@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Configuration Space for Four-Bar Linkage — AI Conversion</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:#222;font-family:Arial,Helvetica,sans-serif}
+  .page{max-width:1000px;margin:0 auto;padding:28px 34px 40px}
+  h1{margin:8px 0 38px;color:#d91e12;font-size:52px;font-weight:400;letter-spacing:-1px}
+  .demo{border:1px solid #d5d5d5;border-radius:6px;background:#fafafa;padding:26px 28px 10px}
+  .row{display:flex;align-items:center;gap:10px;margin:0 0 15px;font-size:13px}
+  .row label{width:126px;text-align:right}
+  input[type=range]{accent-color:#aaa}
+  #L4{width:225px}
+  .triple{display:flex;align-items:center;gap:8px;flex:1}
+  .triple input{width:120px}
+  .readout{min-width:110px;font-family:Georgia,serif}
+  .stage{position:relative;background:#fff;border:1px solid #ccc;height:430px;margin-top:4px;overflow:hidden}
+  .panel-title{position:absolute;top:19px;color:#777;font-size:14px;z-index:2}
+  .panel-title.left{left:139px}.panel-title.right{left:536px}
+  canvas{position:absolute;top:42px;height:370px}
+  #cspace{left:20px;width:390px}
+  #linkage{left:420px;width:390px}
+  .instructions{font-size:12px;color:#666;margin:8px 0 0}
+  .desc{font-family:Georgia,serif;font-size:19px;line-height:1.75;margin:26px 0 0}
+  @media(max-width:800px){
+    h1{font-size:36px}.page{padding:20px}.stage{height:820px}
+    #cspace{left:0;top:42px;width:100%}.panel-title.left{left:35%}
+    #linkage{left:0;top:430px;width:100%}.panel-title.right{top:407px;left:35%}
+    .row label{width:105px}.triple{flex-wrap:wrap}.triple input{width:90px}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Configuration Space for Four-Bar Linkage</h1>
+
+  <div class="demo">
+    <div class="row">
+      <label>separation (<i>L</i><sub>4</sub>)</label>
+      <input id="L4" type="range" min=".15" max="2.5" step=".01" value=".75">
+      <span id="v4">0.75</span>
+    </div>
+    <div class="row">
+      <label>link lengths (<i>L</i><sub>1</sub>,<i>L</i><sub>2</sub>,<i>L</i><sub>3</sub>)</label>
+      <div class="triple">
+        <input id="L1" type="range" min=".2" max="3" step=".01" value="1.35">
+        <input id="L2" type="range" min=".2" max="3" step=".01" value="2">
+        <input id="L3" type="range" min=".2" max="3" step=".01" value="1.35">
+        <span class="readout" id="lens">{1.35, 2, 1.35}</span>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="panel-title left">configuration space</div>
+      <div class="panel-title right">four-bar linkage</div>
+      <canvas id="cspace" width="390" height="370"></canvas>
+      <canvas id="linkage" width="390" height="370"></canvas>
+    </div>
+    <div class="instructions">Drag the black target on the configuration-space curve to change the linkage configuration.</div>
+  </div>
+
+  <p class="desc">
+    A planar four-bar linkage has four joints, so its configuration is described by four numbers.
+    Because the linkage lengths are constrained, the reachable configurations form a one-dimensional
+    configuration space. The plot at left projects that space onto the two joint angles
+    <i>θ</i> and <i>φ</i>; the drawing at right shows the corresponding linkage.
+  </p>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const cs=$("cspace"), ctx=cs.getContext("2d");
+const lc=$("linkage"), gx=lc.getContext("2d");
+const L1=$("L1"), L2=$("L2"), L3=$("L3"), L4=$("L4");
+const v4=$("v4"), lens=$("lens");
+let theta=-0.92, branch=0;
+
+function vals(){ return [+L1.value,+L2.value,+L3.value,+L4.value]; }
+function wrap(a){ while(a>Math.PI)a-=2*Math.PI; while(a<-Math.PI)a+=2*Math.PI; return a; }
+
+function sols(t){
+  const [a,b,c,d]=vals();
+  const A=2*c*d-2*a*c*Math.cos(t);
+  const B=-2*a*c*Math.sin(t);
+  const C=b*b-d*d-c*c-a*a+2*a*d*Math.cos(t);
+  const R=Math.hypot(A,B);
+  if(R<1e-10) return [];
+  const q=C/R;
+  if(q<-1 || q>1) return [];
+  const u=Math.acos(Math.max(-1,Math.min(1,q))), base=Math.atan2(B,A);
+  return [wrap(base+u),wrap(base-u)];
+}
+
+function map(t,p){
+  const m=28, w=cs.width-2*m, h=cs.height-2*m;
+  return [m+(t+Math.PI)/(2*Math.PI)*w, m+(Math.PI-p)/(2*Math.PI)*h];
+}
+function unmap(x,y){
+  const m=28,w=cs.width-2*m,h=cs.height-2*m;
+  return [(x-m)/w*2*Math.PI-Math.PI, Math.PI-(y-m)/h*2*Math.PI];
+}
+function axes(){
+  ctx.clearRect(0,0,cs.width,cs.height);
+  const o=map(0,0), m=28;
+  ctx.strokeStyle="#aaa";ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(m,o[1]);ctx.lineTo(cs.width-m,o[1]);ctx.moveTo(o[0],m);ctx.lineTo(o[0],cs.height-m);ctx.stroke();
+  ctx.fillStyle="#777";ctx.font="12px Arial";
+  for(let n=-3;n<=3;n++){
+    const x=map(n,0)[0], y=map(0,n)[1];
+    ctx.beginPath();ctx.moveTo(x,o[1]-4);ctx.lineTo(x,o[1]+4);ctx.moveTo(o[0]-4,y);ctx.lineTo(o[0]+4,y);ctx.stroke();
+    if(n!==0){ctx.fillText(n,x-4,o[1]+18);ctx.fillText(n,o[0]-18,y+4)}
+  }
+  ctx.font="italic 14px Georgia";ctx.fillText("θ",cs.width-14,o[1]+4);ctx.fillText("φ",o[0]-4,15);
+}
+function curve(k,color){
+  ctx.strokeStyle=color;ctx.lineWidth=2;let drawing=false,prev=null;
+  for(let i=0;i<=1400;i++){
+    const t=-Math.PI+i/1400*2*Math.PI, s=sols(t);
+    if(!s.length){if(drawing)ctx.stroke();drawing=false;prev=null;continue}
+    const p=map(t,s[k]), jump=prev&&Math.abs(p[1]-prev[1])>120;
+    if(!drawing||jump){if(drawing)ctx.stroke();ctx.beginPath();ctx.moveTo(...p);drawing=true}else ctx.lineTo(...p);
+    prev=p;
+  }
+  if(drawing)ctx.stroke();
+}
+function drawC(){
+  axes(); curve(0,"#e59a1a"); curve(1,"#6389c1");
+  const s=sols(theta); if(!s.length)return;
+  const p=map(theta,s[branch]);
+  ctx.strokeStyle="#111";ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(p[0],p[1],7,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(p[0]-11,p[1]);ctx.lineTo(p[0]+11,p[1]);ctx.moveTo(p[0],p[1]-11);ctx.lineTo(p[0],p[1]+11);ctx.stroke();
+}
+function drawLink(){
+  gx.clearRect(0,0,lc.width,lc.height);
+  const [a,b,c,d]=vals(), s=sols(theta); if(!s.length)return;
+  const phi=s[branch];
+  const O=[0,0], D=[d,0], A=[a*Math.cos(theta),a*Math.sin(theta)], B=[d+c*Math.cos(phi),c*Math.sin(phi)];
+  const maxL=Math.max(a,b,c,d,1), scale=75/maxL, cx=195-d*scale/2, cy=185;
+  const P=p=>[cx+p[0]*scale,cy-p[1]*scale];
+
+  function seg(u,v,col,w=6){u=P(u);v=P(v);gx.strokeStyle=col;gx.lineWidth=w;gx.lineCap="round";gx.beginPath();gx.moveTo(...u);gx.lineTo(...v);gx.stroke()}
+  // pedestal / fixed pivots
+  const po=P(O), pd=P(D);
+  gx.fillStyle="#a87535";gx.fillRect(po[0]-24,po[1],pd[0]-po[0]+48,36);
+  gx.fillRect(po[0]-12,po[1]-8,24,28);gx.fillRect(pd[0]-12,pd[1]-8,24,28);
+
+  // colored construction circles, like the Mathematica graphic
+  gx.lineWidth=1.5;
+  [[O,a,"#2457ff"],[D,c,"#ff2222"],[A,b,"#ff7b00"]].forEach(([q,r,col])=>{
+    q=P(q);gx.strokeStyle=col;gx.beginPath();gx.arc(q[0],q[1],r*scale,0,Math.PI*2);gx.stroke();
+  });
+
+  seg(O,A,"#2444d8",4); seg(A,B,"#333",8); seg(D,B,"#e02a22",4);
+  [O,D,A,B].forEach(q=>{q=P(q);gx.fillStyle="#a87535";gx.strokeStyle="#555";gx.lineWidth=3;gx.beginPath();gx.arc(q[0],q[1],8,0,Math.PI*2);gx.fill();gx.stroke()});
+
+  gx.font="italic 15px Georgia";
+  gx.fillStyle="#1d43d5";gx.fillText("θ",po[0]+28,po[1]+19);
+  gx.fillStyle="#e02020";gx.fillText("φ",pd[0]+17,pd[1]+18);
+  const mid=P([(A[0]+B[0])/2,(A[1]+B[1])/2]); gx.fillStyle="#333"; gx.fillText("L₂",mid[0]+8,mid[1]);
+}
+function render(){
+  v4.textContent=(+L4.value).toFixed(2);
+  lens.textContent=`{${(+L1.value).toFixed(2).replace(/0$/,"")}, ${(+L2.value).toFixed(2).replace(/\.00$/,"")}, ${(+L3.value).toFixed(2).replace(/0$/,"")}}`;
+  if(!sols(theta).length){
+    for(let i=0;i<800;i++){const t=-Math.PI+i/799*2*Math.PI;if(sols(t).length){theta=t;branch=0;break}}
+  }
+  drawC();drawLink();
+}
+[L1,L2,L3,L4].forEach(el=>el.addEventListener("input",render));
+
+function pick(e){
+  const r=cs.getBoundingClientRect(), x=(e.clientX-r.left)/r.width*cs.width, y=(e.clientY-r.top)/r.height*cs.height;
+  let best=null;
+  for(let i=0;i<=700;i++){
+    const t=-Math.PI+i/700*2*Math.PI,s=sols(t);
+    s.forEach((p,k)=>{const q=map(t,p),d=(q[0]-x)**2+(q[1]-y)**2;if(!best||d<best.d)best={d,t,k}})
+  }
+  if(best){theta=best.t;branch=best.k;render()}
+}
+cs.addEventListener("pointerdown",e=>{cs.setPointerCapture(e.pointerId);pick(e)});
+cs.addEventListener("pointermove",e=>{if(e.buttons)pick(e)});
+render();
+</script>
+</body></html>
